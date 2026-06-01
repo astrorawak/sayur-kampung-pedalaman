@@ -1,4 +1,39 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
+
+// ─── Toast Notification ──────────────────────────────────────────────────────
+type ToastType = 'success' | 'error' | 'info';
+interface ToastItem { id: number; type: ToastType; message: string; }
+
+function Toast({ toasts, onRemove }: { toasts: ToastItem[]; onRemove: (id: number) => void }) {
+  return (
+    <div className="fixed bottom-5 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
+      {toasts.map((t) => (
+        <div key={t.id}
+          className={`pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium max-w-xs animate-fade-in
+            ${ t.type === 'success' ? 'bg-green-600 text-white'
+              : t.type === 'error' ? 'bg-red-500 text-white'
+              : 'bg-gray-800 text-white' }`}>
+          <span className="text-base flex-shrink-0">
+            {t.type === 'success' ? '✅' : t.type === 'error' ? '❌' : 'ℹ️'}
+          </span>
+          <span className="flex-1 leading-snug">{t.message}</span>
+          <button onClick={() => onRemove(t.id)} className="opacity-70 hover:opacity-100 text-lg leading-none ml-1">×</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function useToast() {
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const show = useCallback((message: string, type: ToastType = 'success') => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, type, message }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
+  }, []);
+  const remove = useCallback((id: number) => setToasts((prev) => prev.filter((t) => t.id !== id)), []);
+  return { toasts, show, remove };
+}
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAdminStore } from '../../store/adminStore';
 import { formatRupiah, slugify } from '../../lib/utils';
@@ -160,16 +195,105 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
+// ─── Image Uploader Component ───────────────────────────────────────────────
+function ImageUploader({
+  value, onChange, onToast, label = 'Gambar'
+}: {
+  value: string;
+  onChange: (url: string) => void;
+  onToast: (msg: string, type: ToastType) => void;
+  label?: string;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validasi tipe file
+    if (!file.type.startsWith('image/')) {
+      onToast('File harus berupa gambar (JPG, PNG, WebP, GIF)', 'error');
+      return;
+    }
+    // Validasi ukuran (maks 3MB)
+    if (file.size > 3 * 1024 * 1024) {
+      onToast('Ukuran gambar terlalu besar. Maksimal 3MB.', 'error');
+      return;
+    }
+
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      onChange(dataUrl);
+      setUploading(false);
+      onToast(`${label} berhasil diupload!`, 'success');
+    };
+    reader.onerror = () => {
+      setUploading(false);
+      onToast(`Gagal membaca file ${label}. Coba lagi.`, 'error');
+    };
+    reader.readAsDataURL(file);
+    // Reset input agar file yang sama bisa dipilih ulang
+    e.target.value = '';
+  };
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-[var(--text)] mb-1">{label} *</label>
+      <div
+        onClick={() => !uploading && fileRef.current?.click()}
+        className={`relative border-2 border-dashed rounded-xl cursor-pointer transition-all
+          ${ uploading ? 'border-[var(--primary)] bg-green-50 cursor-wait'
+            : value ? 'border-[var(--primary)] bg-green-50 hover:bg-green-100'
+            : 'border-[var(--border)] hover:border-[var(--primary)] hover:bg-[var(--bg-alt)]' }`}
+      >
+        {value ? (
+          <div className="relative">
+            <img src={value} alt="preview" className="w-full h-36 object-cover rounded-xl"
+              onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/400x200?text=Gambar+Tidak+Valid'; }} />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl opacity-0 hover:opacity-100 transition-opacity">
+              <span className="text-white text-sm font-semibold bg-black/60 px-3 py-1.5 rounded-lg">🔄 Ganti Gambar</span>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-8 px-4">
+            {uploading ? (
+              <>
+                <div className="text-3xl mb-2 animate-spin">⏳</div>
+                <p className="text-sm text-[var(--primary)] font-medium">Memproses gambar...</p>
+              </>
+            ) : (
+              <>
+                <div className="text-4xl mb-2">📷</div>
+                <p className="text-sm font-semibold text-[var(--text)]">Klik untuk upload gambar</p>
+                <p className="text-xs text-[var(--muted)] mt-1">JPG, PNG, WebP • Maks. 3MB</p>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} className="hidden" />
+      {value && (
+        <button type="button" onClick={() => onChange('')}
+          className="mt-1.5 text-xs text-red-500 hover:text-red-700 font-medium">🗑️ Hapus gambar</button>
+      )}
+    </div>
+  );
+}
+
 // ─── Produk ───────────────────────────────────────────────────────────────────
 const emptyProduct = (): Omit<Product, 'id'> => ({
   name: '', slug: '', price: 0, unit: 'kg', category: '', categorySlug: '',
   description: '', image: '', stock: 0, isActive: true, origin: '', badge: '',
 });
 
-function ProductForm({ initial, onSave, onClose }: {
+function ProductForm({ initial, onSave, onClose, onToast }: {
   initial: Product | null;
   onSave: (p: Product) => void;
   onClose: () => void;
+  onToast: (msg: string, type: ToastType) => void;
 }) {
   const { categories } = useAdminStore();
   const [form, setForm] = useState<Omit<Product, 'id'>>(
@@ -197,7 +321,7 @@ function ProductForm({ initial, onSave, onClose }: {
     if (!form.name.trim()) e.name = 'Nama wajib diisi';
     if (!form.price || form.price <= 0) e.price = 'Harga harus lebih dari 0';
     if (!form.categorySlug) e.categorySlug = 'Pilih kategori';
-    if (!form.image.trim()) e.image = 'URL gambar wajib diisi';
+    if (!form.image.trim()) e.image = 'Gambar produk wajib diupload';
     if (!form.origin.trim()) e.origin = 'Asal produk wajib diisi';
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -255,14 +379,13 @@ function ProductForm({ initial, onSave, onClose }: {
           <input value={form.badge || ''} onChange={(e) => set('badge', e.target.value)} placeholder="Terlaris / Organik / Langka" className={inputCls('badge')} />
         </div>
         <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-[var(--text)] mb-1">URL Gambar *</label>
-          <input value={form.image} onChange={(e) => set('image', e.target.value)} placeholder="https://images.unsplash.com/..." className={inputCls('image')} />
+          <ImageUploader
+            value={form.image}
+            onChange={(url) => { set('image', url); setErrors((e) => ({ ...e, image: '' })); }}
+            onToast={onToast}
+            label="Gambar Produk"
+          />
           {errors.image && <p className="text-red-500 text-xs mt-1">{errors.image}</p>}
-          {form.image && (
-            <div className="mt-2 rounded-lg overflow-hidden h-32 bg-[var(--bg-alt)]">
-              <img src={form.image} alt="preview" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
-            </div>
-          )}
         </div>
         <div className="sm:col-span-2">
           <label className="block text-sm font-medium text-[var(--text)] mb-1">Deskripsi</label>
@@ -293,6 +416,7 @@ export function AdminProduk() {
   const [selected, setSelected] = useState<Product | null>(null);
   const [search, setSearch] = useState('');
   const [confirm, setConfirm] = useState<number | null>(null);
+  const { toasts, show: showToast, remove: removeToast } = useToast();
 
   const filtered = products.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -300,8 +424,8 @@ export function AdminProduk() {
   );
 
   const handleSave = (p: Product) => {
-    if (modal === 'edit') updateProduct(p);
-    else addProduct(p);
+    if (modal === 'edit') { updateProduct(p); showToast('Produk berhasil diperbarui!', 'success'); }
+    else { addProduct(p); showToast('Produk baru berhasil ditambahkan!', 'success'); }
     setModal(null);
     setSelected(null);
   };
@@ -309,6 +433,7 @@ export function AdminProduk() {
   const handleDelete = (id: number) => {
     deleteProduct(id);
     setConfirm(null);
+    showToast('Produk berhasil dihapus.', 'info');
   };
 
   return (
@@ -386,9 +511,11 @@ export function AdminProduk() {
       {/* Add/Edit Modal */}
       {modal && (
         <Modal title={modal === 'edit' ? `Edit: ${selected?.name}` : 'Tambah Produk Baru'} onClose={() => { setModal(null); setSelected(null); }}>
-          <ProductForm initial={selected} onSave={handleSave} onClose={() => { setModal(null); setSelected(null); }} />
+          <ProductForm initial={selected} onSave={handleSave} onClose={() => { setModal(null); setSelected(null); }} onToast={showToast} />
         </Modal>
       )}
+
+      <Toast toasts={toasts} onRemove={removeToast} />
 
       {/* Delete Confirm */}
       {confirm !== null && (
@@ -504,10 +631,11 @@ function ImageInsertModal({ onInsert, onClose }: { onInsert: (url: string, alt: 
   );
 }
 
-function BlogEditor({ initial, onSave, onClose }: {
+function BlogEditor({ initial, onSave, onClose, onToast }: {
   initial: BlogPost | null;
   onSave: (p: BlogPost) => void;
   onClose: () => void;
+  onToast: (msg: string, type: ToastType) => void;
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState<Omit<BlogPost, 'id'>>({
@@ -601,7 +729,7 @@ function BlogEditor({ initial, onSave, onClose }: {
     if (!form.title.trim()) e.title = 'Judul wajib diisi';
     if (!form.excerpt.trim()) e.excerpt = 'Ringkasan wajib diisi';
     if (!form.content.trim()) e.content = 'Konten wajib diisi';
-    if (!form.image.trim()) e.image = 'URL gambar cover wajib diisi';
+    if (!form.image.trim()) e.image = 'Gambar cover artikel wajib diupload';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -648,14 +776,13 @@ function BlogEditor({ initial, onSave, onClose }: {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-[var(--text)] mb-1">URL Gambar Cover *</label>
-          <input value={form.image} onChange={(e) => set('image', e.target.value)} placeholder="https://images.unsplash.com/..." className={inputCls('image')} />
+          <ImageUploader
+            value={form.image}
+            onChange={(url) => { set('image', url); setErrors((e) => ({ ...e, image: '' })); }}
+            onToast={onToast}
+            label="Gambar Cover Artikel"
+          />
           {errors.image && <p className="text-red-500 text-xs mt-1">{errors.image}</p>}
-          {form.image && (
-            <div className="mt-2 rounded-lg overflow-hidden h-28 bg-[var(--bg-alt)]">
-              <img src={form.image} alt="cover" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
-            </div>
-          )}
         </div>
 
         <div>
@@ -740,10 +867,11 @@ export function AdminBlog() {
   const [modal, setModal] = useState<'add' | 'edit' | null>(null);
   const [selected, setSelected] = useState<BlogPost | null>(null);
   const [confirm, setConfirm] = useState<number | null>(null);
+  const { toasts, show: showToast, remove: removeToast } = useToast();
 
   const handleSave = (p: BlogPost) => {
-    if (modal === 'edit') updateBlogPost(p);
-    else addBlogPost(p);
+    if (modal === 'edit') { updateBlogPost(p); showToast('Artikel berhasil diperbarui!', 'success'); }
+    else { addBlogPost(p); showToast('Artikel baru berhasil dipublish!', 'success'); }
     setModal(null);
     setSelected(null);
   };
@@ -794,9 +922,11 @@ export function AdminBlog() {
 
       {modal && (
         <Modal title={modal === 'edit' ? `Edit: ${selected?.title}` : 'Tulis Artikel Baru'} onClose={() => { setModal(null); setSelected(null); }}>
-          <BlogEditor initial={selected} onSave={handleSave} onClose={() => { setModal(null); setSelected(null); }} />
+          <BlogEditor initial={selected} onSave={handleSave} onClose={() => { setModal(null); setSelected(null); }} onToast={showToast} />
         </Modal>
       )}
+
+      <Toast toasts={toasts} onRemove={removeToast} />
 
       {confirm !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
@@ -806,7 +936,7 @@ export function AdminBlog() {
             <p className="text-sm text-[var(--muted)] text-center mb-5">Tindakan ini tidak dapat dibatalkan.</p>
             <div className="flex gap-3">
               <button onClick={() => setConfirm(null)} className="flex-1 border border-[var(--border)] text-[var(--text)] py-2.5 rounded-lg text-sm font-semibold hover:bg-[var(--bg-alt)] transition-colors">Batal</button>
-              <button onClick={() => { deleteBlogPost(confirm); setConfirm(null); }} className="flex-1 bg-red-500 text-white py-2.5 rounded-lg text-sm font-bold hover:bg-red-600 transition-colors">Hapus</button>
+              <button onClick={() => { deleteBlogPost(confirm); setConfirm(null); showToast('Artikel berhasil dihapus.', 'info'); }} className="flex-1 bg-red-500 text-white py-2.5 rounded-lg text-sm font-bold hover:bg-red-600 transition-colors">Hapus</button>
             </div>
           </div>
         </div>
@@ -903,10 +1033,11 @@ export function AdminKategori() {
   const [modal, setModal] = useState<'add' | 'edit' | null>(null);
   const [selected, setSelected] = useState<Category | null>(null);
   const [confirm, setConfirm] = useState<number | null>(null);
+  const { toasts, show: showToast, remove: removeToast } = useToast();
 
   const handleSave = (c: Category) => {
-    if (modal === 'edit') updateCategory(c);
-    else addCategory(c);
+    if (modal === 'edit') { updateCategory(c); showToast('Kategori berhasil diperbarui!', 'success'); }
+    else { addCategory(c); showToast('Kategori baru berhasil ditambahkan!', 'success'); }
     setModal(null);
     setSelected(null);
   };
@@ -963,6 +1094,8 @@ export function AdminKategori() {
         </Modal>
       )}
 
+      <Toast toasts={toasts} onRemove={removeToast} />
+
       {confirm !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="bg-[var(--bg)] rounded-2xl p-6 w-full max-w-sm shadow-2xl">
@@ -971,7 +1104,7 @@ export function AdminKategori() {
             <p className="text-sm text-[var(--muted)] text-center mb-5">Produk dalam kategori ini tidak akan terhapus, hanya kategorinya saja.</p>
             <div className="flex gap-3">
               <button onClick={() => setConfirm(null)} className="flex-1 border border-[var(--border)] text-[var(--text)] py-2.5 rounded-lg text-sm font-semibold hover:bg-[var(--bg-alt)] transition-colors">Batal</button>
-              <button onClick={() => { deleteCategory(confirm); setConfirm(null); }} className="flex-1 bg-red-500 text-white py-2.5 rounded-lg text-sm font-bold hover:bg-red-600 transition-colors">Hapus</button>
+              <button onClick={() => { deleteCategory(confirm); setConfirm(null); showToast('Kategori berhasil dihapus.', 'info'); }} className="flex-1 bg-red-500 text-white py-2.5 rounded-lg text-sm font-bold hover:bg-red-600 transition-colors">Hapus</button>
             </div>
           </div>
         </div>
