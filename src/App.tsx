@@ -34,7 +34,7 @@ function NotFound() {
         <p className="text-[var(--muted)] italic font-body mb-8">
           Sepertinya halaman yang Anda cari sudah berpindah ke hutan yang lebih dalam.
         </p>
-        <a href="/" className="inline-flex items-center gap-2 bg-[var(--primary)] text-white px-7 py-3 rounded font-semibold text-sm no-underline hover:bg-[var(--primary-dark)] transition-colors">
+        <a href="/sayur-kampung-pedalaman/" className="inline-flex items-center gap-2 bg-[var(--primary)] text-white px-7 py-3 rounded font-semibold text-sm no-underline hover:bg-[var(--primary-dark)] transition-colors">
           ← Kembali ke Beranda
         </a>
       </div>
@@ -44,7 +44,7 @@ function NotFound() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/sayur-kampung-pedalaman">
       <Routes>
         <Route path="/" element={<PublicLayout><HomePage /></PublicLayout>} />
         <Route path="/toko" element={<PublicLayout><TokoPage /></PublicLayout>} />
