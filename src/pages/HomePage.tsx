@@ -1,8 +1,8 @@
 
 import { Link } from 'react-router-dom';
-import { products, categories } from '../data/products';
 import { formatRupiah } from '../lib/utils';
 import { useCartStore } from '../store/cart';
+import { useAdminStore } from '../store/adminStore';
 
 function HeroSection() {
   return (
@@ -51,6 +51,7 @@ function HeroSection() {
 }
 
 function CategorySection() {
+  const { categories } = useAdminStore();
   return (
     <section className="py-16 bg-[var(--bg-alt)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -78,7 +79,8 @@ function CategorySection() {
 
 function FeaturedProducts() {
   const addItem = useCartStore((s) => s.addItem);
-  const featured = products.filter((p) => p.badge).slice(0, 4);
+  const { products } = useAdminStore();
+  const featured = products.filter((p) => p.badge && p.isActive).slice(0, 4);
 
   return (
     <section className="py-16">

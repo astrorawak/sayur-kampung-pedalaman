@@ -1,9 +1,9 @@
-
 import { useParams, Link } from 'react-router-dom';
-import { blogPosts } from '../data/blog';
+import { useAdminStore } from '../store/adminStore';
 
 export function BlogPostPage() {
   const { slug } = useParams<{ slug: string }>();
+  const { blogPosts } = useAdminStore();
   const post = blogPosts.find((p) => p.slug === slug);
 
   if (!post) {
@@ -20,21 +20,85 @@ export function BlogPostPage() {
 
   const related = blogPosts.filter((p) => p.id !== post.id && p.isPublished).slice(0, 3);
 
-  // Simple markdown-like rendering
+  // Enhanced markdown-like rendering that supports images
+  // Syntax: ![alt text](url) for images
   const renderContent = (content: string) => {
-    return content.split('\n').map((line, i) => {
+    const lines = content.split('\n');
+    const elements: React.ReactNode[] = [];
+    let listBuffer: string[] = [];
+
+    const flushList = (key: string) => {
+      if (listBuffer.length > 0) {
+        elements.push(
+          <ul key={key + '-ul'} className="list-disc ml-6 mb-4 space-y-1">
+            {listBuffer.map((item, i) => (
+              <li key={i} className="text-[var(--text)] leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: item.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}
+              />
+            ))}
+          </ul>
+        );
+        listBuffer = [];
+      }
+    };
+
+    lines.forEach((line, i) => {
+      // Image syntax: ![alt](url)
+      const imgMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+      if (imgMatch) {
+        flushList(String(i));
+        elements.push(
+          <figure key={i} className="my-6">
+            <img
+              src={imgMatch[2]}
+              alt={imgMatch[1]}
+              className="w-full rounded-xl shadow-md object-cover max-h-96"
+            />
+            {imgMatch[1] && (
+              <figcaption className="text-center text-sm text-[var(--muted)] mt-2 italic">{imgMatch[1]}</figcaption>
+            )}
+          </figure>
+        );
+        return;
+      }
+
       if (line.startsWith('## ')) {
-        return <h2 key={i} className="font-display text-2xl text-[var(--text)] font-bold mt-8 mb-4">{line.slice(3)}</h2>;
+        flushList(String(i));
+        elements.push(
+          <h2 key={i} className="font-display text-2xl text-[var(--text)] font-bold mt-8 mb-4">{line.slice(3)}</h2>
+        );
+        return;
       }
+
       if (line.startsWith('### ')) {
-        return <h3 key={i} className="font-display text-xl text-[var(--text)] font-semibold mt-6 mb-3">{line.slice(4)}</h3>;
+        flushList(String(i));
+        elements.push(
+          <h3 key={i} className="font-display text-xl text-[var(--text)] font-semibold mt-6 mb-3">{line.slice(4)}</h3>
+        );
+        return;
       }
+
       if (line.startsWith('- ')) {
-        return <li key={i} className="text-[var(--text)] leading-relaxed ml-4 list-disc">{line.slice(2).replace(/\*\*(.*?)\*\*/g, '$1')}</li>;
+        listBuffer.push(line.slice(2));
+        return;
       }
-      if (line.trim() === '') return <br key={i} />;
-      return <p key={i} className="text-[var(--text)] leading-relaxed mb-4">{line.replace(/\*\*(.*?)\*\*/g, '$1')}</p>;
+
+      flushList(String(i));
+
+      if (line.trim() === '') {
+        elements.push(<div key={i} className="h-2" />);
+        return;
+      }
+
+      elements.push(
+        <p key={i} className="text-[var(--text)] leading-relaxed mb-4"
+          dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}
+        />
+      );
     });
+
+    flushList('end');
+    return elements;
   };
 
   return (

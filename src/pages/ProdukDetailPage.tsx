@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { products } from '../data/products';
 import { formatRupiah } from '../lib/utils';
 import { useCartStore } from '../store/cart';
+import { useAdminStore } from '../store/adminStore';
 
 export function ProdukDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const [qty, setQty] = useState(1);
   const addItem = useCartStore((s) => s.addItem);
+  const { products } = useAdminStore();
   const product = products.find((p) => p.slug === slug);
 
   if (!product) {

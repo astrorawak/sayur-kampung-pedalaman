@@ -1,14 +1,15 @@
 import { useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { products, categories } from '../data/products';
 import { formatRupiah } from '../lib/utils';
 import { useCartStore } from '../store/cart';
+import { useAdminStore } from '../store/adminStore';
 
 export function TokoPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('default');
   const addItem = useCartStore((s) => s.addItem);
+  const { products, categories } = useAdminStore();
   const activeCategory = searchParams.get('kategori') || 'semua';
 
   const filtered = useMemo(() => {

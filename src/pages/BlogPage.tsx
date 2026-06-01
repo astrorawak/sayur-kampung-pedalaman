@@ -1,8 +1,10 @@
-
 import { Link } from 'react-router-dom';
-import { blogPosts } from '../data/blog';
+import { useAdminStore } from '../store/adminStore';
 
 export function BlogPage() {
+  const { blogPosts } = useAdminStore();
+  const published = blogPosts.filter((p) => p.isPublished);
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       <div className="text-center mb-12">
@@ -13,7 +15,7 @@ export function BlogPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {blogPosts.filter((p) => p.isPublished).map((post) => (
+        {published.map((post) => (
           <article key={post.id} className="bg-[var(--bg)] border border-[var(--border)] rounded-xl overflow-hidden hover:shadow-lg transition-shadow group">
             <div className="overflow-hidden">
               <img
@@ -45,7 +47,7 @@ export function BlogPage() {
         ))}
       </div>
 
-      {blogPosts.filter((p) => p.isPublished).length === 0 && (
+      {published.length === 0 && (
         <div className="text-center py-20">
           <div className="text-5xl mb-4">📝</div>
           <h3 className="font-display text-xl text-[var(--text)] mb-2">Belum Ada Artikel</h3>
